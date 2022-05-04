@@ -20,11 +20,23 @@
  * 2022-01-07     Gabriel      Moving __on_rt_xxxxx_hook to timer.c
  */
 
+/*
+ *定时器有硬件定时器和软件定时器之分：
+ *1）硬件定时器是芯片本身提供的定时功能。一般是由外部晶振提供给芯片输入时钟，芯片向软件模块提供一组配置寄存器，接受控制输入，到达设定时间值后芯片中断控制器产生时钟中断。硬件定时器的精度一般很高，可以达到纳秒级别，并且是中断触发方式。
+ *2）软件定时器是由操作系统提供的一类系统接口，它构建在硬件定时器基础之上，使系统能够提供不受数目限制的定时器服务。
+ *
+ * RT-Thread 的定时器提供两类定时器机制：第一类是单次触发定时器，这类定时器在启动后只会触发一次定时器事件，然后定时器自动停止。第二类是周期触发定时器，这类定时器会周期性的触发定时器事件，直到用户手动的停止，否则将永远持续执行下去。
+ *
+ *HARD_TIMER 模式的定时器超时函数在中断上下文环境中执行，可以在初始化 / 创建定时器时使用参数 RT_TIMER_FLAG_HARD_TIMER 来指定。
+ *SOFT_TIMER 模式被启用后，系统会在初始化时创建一个 timer 线程，然后 SOFT_TIMER 模式的定时器超时函数在都会在 timer 线程的上下文环境中执行
+ * */
+
 #include <rtthread.h>
 #include <rthw.h>
 
 /* hard timer list */
-static rt_list_t _timer_list[RT_TIMER_SKIP_LIST_LEVEL];
+static rt_list_t _timer_list[RT_TIMER_SKIP_LIST_LEVEL]; 
+// 跳表, 定时器按 tick 从小到大排序，使用跳表可以快速插入, 删除,查找
 
 #ifdef RT_USING_TIMER_SOFT
 
@@ -43,7 +55,7 @@ static rt_list_t _timer_list[RT_TIMER_SKIP_LIST_LEVEL];
 static rt_uint8_t _soft_timer_status = RT_SOFT_TIMER_IDLE;
 /* soft timer list */
 static rt_list_t _soft_timer_list[RT_TIMER_SKIP_LIST_LEVEL];
-static struct rt_thread _timer_thread;
+static struct rt_thread _timer_thread; // 时间管理线程
 ALIGN(RT_ALIGN_SIZE)
 static rt_uint8_t _timer_thread_stack[RT_TIMER_THREAD_STACK_SIZE];
 #endif /* RT_USING_TIMER_SOFT */
@@ -116,10 +128,11 @@ void rt_timer_exit_sethook(void (*hook)(struct rt_timer *timer))
  *
  * @param flag the flag of timer
  */
-static void _timer_init(rt_timer_t timer,
-                           void (*timeout)(void *parameter),
-                           void      *parameter,
-                           rt_tick_t  time,
+static void _timer_init(rt_timer_t timer,			// 定时器句柄，指向要初始化的定时器控制块
+
+                           void (*timeout)(void *parameter),	// 超时后需要执行的函数
+                           void      *parameter,		// 上述函数的参数
+                           rt_tick_t  time,			// 
                            rt_uint8_t flag)
 {
     int i;
@@ -161,7 +174,7 @@ static rt_err_t _timer_list_next_timeout(rt_list_t timer_list[], rt_tick_t *time
     /* disable interrupt */
     level = rt_hw_interrupt_disable();
 
-    if (!rt_list_isempty(&timer_list[RT_TIMER_SKIP_LIST_LEVEL - 1]))
+    if (!rt_list_isempty(&timer_list[RT_TIMER_SKIP_LIST_LEVEL - 1])) // 非空
     {
         timer = rt_list_entry(timer_list[RT_TIMER_SKIP_LIST_LEVEL - 1].next,
                               struct rt_timer, row[RT_TIMER_SKIP_LIST_LEVEL - 1]);
@@ -176,7 +189,7 @@ static rt_err_t _timer_list_next_timeout(rt_list_t timer_list[], rt_tick_t *time
     /* enable interrupt */
     rt_hw_interrupt_enable(level);
 
-    return -RT_ERROR;
+    return -RT_ERROR; // 异常返回的是负数
 }
 
 /**
@@ -188,7 +201,7 @@ rt_inline void _timer_remove(rt_timer_t timer)
 {
     int i;
 
-    for (i = 0; i < RT_TIMER_SKIP_LIST_LEVEL; i++)
+    for (i = 0; i < RT_TIMER_SKIP_LIST_LEVEL; i++) // 从跳表中删除
     {
         rt_list_remove(&timer->row[i]);
     }
@@ -202,7 +215,7 @@ rt_inline void _timer_remove(rt_timer_t timer)
  *
  * @return count of timer
  */
-static int _timer_count_height(struct rt_timer *timer)
+static int _timer_count_height(struct rt_timer *timer) // 返回跳表节点高度
 {
     int i, cnt = 0;
 
@@ -224,12 +237,12 @@ void rt_timer_dump(rt_list_t timer_heads[])
 
     for (list = timer_heads[RT_TIMER_SKIP_LIST_LEVEL - 1].next;
          list != &timer_heads[RT_TIMER_SKIP_LIST_LEVEL - 1];
-         list = list->next)
+         list = list->next) // 遍历跳表（环形的）
     {
         struct rt_timer *timer = rt_list_entry(list,
                                                struct rt_timer,
                                                row[RT_TIMER_SKIP_LIST_LEVEL - 1]);
-        rt_kprintf("%d", _timer_count_height(timer));
+        rt_kprintf("%d", _timer_count_height(timer)); // 输出结点高度
     }
     rt_kprintf("\n");
 }
@@ -260,17 +273,17 @@ void rt_timer_dump(rt_list_t timer_heads[])
  * @param flag is the flag of timer
  *
  */
-void rt_timer_init(rt_timer_t  timer,
-                   const char *name,
-                   void (*timeout)(void *parameter),
-                   void       *parameter,
-                   rt_tick_t   time,
-                   rt_uint8_t  flag)
+void rt_timer_init(rt_timer_t  timer, // 定时器句柄，指向要初始化的定时器控制块
+                   const char *name, // 定时器的名称
+                   void (*timeout)(void *parameter), // 定时器超时函数指针
+                   void       *parameter, // 超时函数的入口参数
+                   rt_tick_t   time,  // 定时器的超时时间，单位是时钟节拍
+                   rt_uint8_t  flag) // 定时器创建时的参数
 {
     /* parameter check */
-    RT_ASSERT(timer != RT_NULL);
+    RT_ASSERT(timer != RT_NULL); // 一般是静态分配好的，rt_timer_create 是动态申请
     RT_ASSERT(timeout != RT_NULL);
-    RT_ASSERT(time < RT_TICK_MAX / 2);
+    RT_ASSERT(time < RT_TICK_MAX / 2); // TODO why / 2  
 
     /* timer object initialization */
     rt_object_init(&(timer->parent), RT_Object_Class_Timer, name);
@@ -286,6 +299,8 @@ RTM_EXPORT(rt_timer_init);
  *
  * @return the status of detach
  */
+
+// 当一个静态定时器不需要再使用时，可以使用下面的函数接口
 rt_err_t rt_timer_detach(rt_timer_t timer)
 {
     register rt_base_t level;
@@ -306,7 +321,8 @@ rt_err_t rt_timer_detach(rt_timer_t timer)
     rt_hw_interrupt_enable(level);
 
     rt_object_detach(&(timer->parent));
-
+    // 把定时器对象从内核对象容器中脱离
+    // 但是定时器对象所占有的内存不会被释放
     return RT_EOK;
 }
 RTM_EXPORT(rt_timer_detach);
@@ -329,11 +345,11 @@ RTM_EXPORT(rt_timer_detach);
  *
  * @return the created timer object
  */
-rt_timer_t rt_timer_create(const char *name,
-                           void (*timeout)(void *parameter),
-                           void       *parameter,
-                           rt_tick_t   time,
-                           rt_uint8_t  flag)
+rt_timer_t rt_timer_create(const char *name,	// 定时器的名称
+                           void (*timeout)(void *parameter), // 超时函数指针
+                           void       *parameter, // 超时函数的入口参数
+                           rt_tick_t   time, // 超时时间，单位是时钟节拍
+                           rt_uint8_t  flag) // 定时器创建时的参数，支持的值包括单次定时、周期定时、硬件定时器、软件定时器等
 {
     struct rt_timer *timer;
 
@@ -342,24 +358,24 @@ rt_timer_t rt_timer_create(const char *name,
     RT_ASSERT(time < RT_TICK_MAX / 2);
 
     /* allocate a object */
-    timer = (struct rt_timer *)rt_object_allocate(RT_Object_Class_Timer, name);
+    timer = (struct rt_timer *)rt_object_allocate(RT_Object_Class_Timer, name); // 从堆中分配定时器控制块
     if (timer == RT_NULL)
     {
-        return RT_NULL;
+        return RT_NULL; // 创建失败
     }
 
-    _timer_init(timer, timeout, parameter, time, flag);
+    _timer_init(timer, timeout, parameter, time, flag); // 对该控制块进行基本的初始化
 
-    return timer;
+    return timer; // 创建成功, 返回定时器的句柄
 }
 RTM_EXPORT(rt_timer_create);
 
 /**
  * @brief This function will delete a timer and release timer memory
  *
- * @param timer the timer to be deleted
+ * @param 定时器句柄，指向要删除的定时器
  *
- * @return the operation status, RT_EOK on OK; RT_ERROR on error
+ * @return 删除成功（如果参数 timer 句柄是一个 RT_NULL，将会导致一个 ASSERT 断言）
  */
 rt_err_t rt_timer_delete(rt_timer_t timer)
 {
@@ -373,14 +389,14 @@ rt_err_t rt_timer_delete(rt_timer_t timer)
     /* disable interrupt */
     level = rt_hw_interrupt_disable();
 
-    _timer_remove(timer);
+    _timer_remove(timer); // 把这个定时器从 rt_timer_list 链表中删除
     /* stop timer */
-    timer->parent.flag &= ~RT_TIMER_FLAG_ACTIVATED;
+    timer->parent.flag &= ~RT_TIMER_FLAG_ACTIVATED; // ACTIVATED 位 flag 置 0
 
     /* enable interrupt */
     rt_hw_interrupt_enable(level);
 
-    rt_object_delete(&(timer->parent));
+    rt_object_delete(&(timer->parent)); // 释放相应的定时器控制块占有的内存
 
     return RT_EOK;
 }
@@ -394,7 +410,7 @@ RTM_EXPORT(rt_timer_delete);
  *
  * @return the operation status, RT_EOK on OK, -RT_ERROR on error
  */
-rt_err_t rt_timer_start(rt_timer_t timer)
+rt_err_t rt_timer_start(rt_timer_t timer) // 定时器启动函数
 {
     unsigned int row_lvl;
     rt_list_t *timer_list;
@@ -413,18 +429,19 @@ rt_err_t rt_timer_start(rt_timer_t timer)
     /* stop timer firstly */
     level = rt_hw_interrupt_disable();
     /* remove timer from list */
-    _timer_remove(timer);
+    _timer_remove(timer); // 从跳表中删除
     /* change status of timer */
-    timer->parent.flag &= ~RT_TIMER_FLAG_ACTIVATED;
+    timer->parent.flag &= ~RT_TIMER_FLAG_ACTIVATED; // 标记不再活跃
 
-    RT_OBJECT_HOOK_CALL(rt_object_take_hook, (&(timer->parent)));
+    RT_OBJECT_HOOK_CALL(rt_object_take_hook, (&(timer->parent))); // 调用钩子函数
 
-    timer->timeout_tick = rt_tick_get() + timer->init_tick;
+    timer->timeout_tick = rt_tick_get() + timer->init_tick; // 下一次调用时的 tick
 
 #ifdef RT_USING_TIMER_SOFT
     if (timer->parent.flag & RT_TIMER_FLAG_SOFT_TIMER)
     {
         /* insert timer to soft timer list */
+	// SOFT 模式被启用后，系统会在初始化时创建一个 timer 线程，然后 SOFT_TIMER 模式的定时器超时函数在都会在 timer 线程的上下文环境中执行
         timer_list = _soft_timer_list;
     }
     else
@@ -434,7 +451,8 @@ rt_err_t rt_timer_start(rt_timer_t timer)
         timer_list = _timer_list;
     }
 
-    row_head[0]  = &timer_list[0];
+    // 按照超时顺序插入到 rt_timer_list 队列链表
+    row_head[0]  = &timer_list[0]; // rt_list_t row_head[]
     for (row_lvl = 0; row_lvl < RT_TIMER_SKIP_LIST_LEVEL; row_lvl++)
     {
         for (; row_head[row_lvl] != timer_list[row_lvl].prev;
@@ -453,14 +471,14 @@ rt_err_t rt_timer_start(rt_timer_t timer)
              */
             if ((t->timeout_tick - timer->timeout_tick) == 0)
             {
-                continue;
+                continue; // 可能多个函数同时超时
             }
             else if ((t->timeout_tick - timer->timeout_tick) < RT_TICK_MAX / 2)
             {
                 break;
             }
         }
-        if (row_lvl != RT_TIMER_SKIP_LIST_LEVEL - 1)
+        if (row_lvl != RT_TIMER_SKIP_LIST_LEVEL - 1) // 
             row_head[row_lvl + 1] = row_head[row_lvl] + 1;
     }
 
@@ -528,7 +546,7 @@ rt_err_t rt_timer_stop(rt_timer_t timer)
     RT_ASSERT(timer != RT_NULL);
     RT_ASSERT(rt_object_get_type(&timer->parent) == RT_Object_Class_Timer);
 
-    if (!(timer->parent.flag & RT_TIMER_FLAG_ACTIVATED))
+    if (!(timer->parent.flag & RT_TIMER_FLAG_ACTIVATED)) // 本来就是停止的
         return -RT_ERROR;
 
     RT_OBJECT_HOOK_CALL(rt_object_put_hook, (&(timer->parent)));
@@ -556,8 +574,11 @@ RTM_EXPORT(rt_timer_stop);
  *
  * @return the statu of control
  */
-rt_err_t rt_timer_control(rt_timer_t timer, int cmd, void *arg)
+rt_err_t rt_timer_control(rt_timer_t timer, int cmd, void *arg) 
 {
+    // cmd : 用于控制定时器的命令，当前支持四个命令，分别是设置定时时间，查看定时时间，设置单次触发，设置周期触发
+    // arg: 与 cmd 相对应的控制命令参数 比如，cmd 为设定超时时间时，就可以将超时时间参数通过 arg 进行设定
+
     register rt_base_t level;
 
     /* parameter check */
@@ -576,15 +597,15 @@ rt_err_t rt_timer_control(rt_timer_t timer, int cmd, void *arg)
         timer->init_tick = *(rt_tick_t *)arg;
         break;
 
-    case RT_TIMER_CTRL_SET_ONESHOT:
+    case RT_TIMER_CTRL_SET_ONESHOT: // PERIODIC 位置 0， 定时器只执行一次
         timer->parent.flag &= ~RT_TIMER_FLAG_PERIODIC;
         break;
 
-    case RT_TIMER_CTRL_SET_PERIODIC:
+    case RT_TIMER_CTRL_SET_PERIODIC: // PERIODIC 位置 1
         timer->parent.flag |= RT_TIMER_FLAG_PERIODIC;
         break;
 
-    case RT_TIMER_CTRL_GET_STATE:
+    case RT_TIMER_CTRL_GET_STATE: // 是否 ACTIVAT
         if(timer->parent.flag & RT_TIMER_FLAG_ACTIVATED)
         {
             /*timer is start and run*/
@@ -779,14 +800,14 @@ void rt_soft_timer_check(void)
  *
  * @param parameter is the arg of the thread
  */
-static void _timer_thread_entry(void *parameter)
+static void _timer_thread_entry(void *parameter) // 系统 timer 管理线程入口
 {
     rt_tick_t next_timeout;
 
-    while (1)
+    while (1) // 无限循环
     {
         /* get the next timeout tick */
-        if (_timer_list_next_timeout(_soft_timer_list, &next_timeout) != RT_EOK)
+        if (_timer_list_next_timeout(_soft_timer_list, &next_timeout) != RT_EOK) // 没有找到定时器
         {
             /* no software timer exist, suspend self. */
             rt_thread_suspend(rt_thread_self());
@@ -796,8 +817,7 @@ static void _timer_thread_entry(void *parameter)
         {
             rt_tick_t current_tick;
 
-            /* get current tick */
-            current_tick = rt_tick_get();
+            current_tick = rt_tick_get(); /// 获取当前 tick 
 
             if ((next_timeout - current_tick) < RT_TICK_MAX / 2)
             {
@@ -818,6 +838,7 @@ static void _timer_thread_entry(void *parameter)
  *
  * @brief This function will initialize system timer
  */
+// 在系统启动时需要初始化定时器管理系统。可以通过下面的函数接口完成
 void rt_system_timer_init(void)
 {
     int i;
@@ -833,6 +854,7 @@ void rt_system_timer_init(void)
  *
  * @brief This function will initialize system timer thread
  */
+// 如果需要使用 SOFT_TIMER，则系统初始化时，应该调用下面这个函数接口
 void rt_system_timer_thread_init(void)
 {
 #ifdef RT_USING_TIMER_SOFT

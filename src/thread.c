@@ -33,6 +33,15 @@
  * 2022-01-24     THEWON       let rt_thread_sleep return thread->error when using signal
  */
 
+
+/*
+RT-Thread 的线程调度器是抢占式的，主要的工作就是从就绪线程列表中查找最高优先级线程，保证最高优先级的线程能够被运行，最高优先级的任务一旦就绪，总能得到 CPU 的使用权。
+当调度器调度线程切换时，先将当前线程上下文保存起来，当再切回到这个线程时，线程调度器将该线程的上下文信息恢复。
+
+
+
+*/
+
 #include <rthw.h>
 #include <rtthread.h>
 #include <stddef.h>
@@ -129,12 +138,12 @@ static void _thread_timeout(void *parameter)
     struct rt_thread *thread;
     register rt_base_t temp;
 
-    thread = (struct rt_thread *)parameter;
+    thread = (struct rt_thread *)parameter; // 传入的是需要处理的函数
 
     /* parameter check */
-    RT_ASSERT(thread != RT_NULL);
+    RT_ASSERT(thread != RT_NULL); // 非空
     RT_ASSERT((thread->stat & RT_THREAD_STAT_MASK) == RT_THREAD_SUSPEND);
-    RT_ASSERT(rt_object_get_type((rt_object_t)thread) == RT_Object_Class_Thread);
+    RT_ASSERT(rt_object_get_type((rt_object_t)thread) == RT_Object_Class_Thread); // 是‘线程’
 
     /* disable interrupt */
     temp = rt_hw_interrupt_disable();
@@ -152,7 +161,7 @@ static void _thread_timeout(void *parameter)
     rt_hw_interrupt_enable(temp);
 
     /* do schedule */
-    rt_schedule();
+    rt_schedule(); // 调度线程
 }
 
 static rt_err_t _thread_init(struct rt_thread *thread,
@@ -921,7 +930,7 @@ RTM_EXPORT(rt_thread_resume);
 /**
  * @brief   This function will find the specified thread.
  *
- * @note    Please don't invoke this function in interrupt status.
+ * @note    Please don't invoke this function in interrupt status. 请不要在中断状态下调用该函数。
  *
  * @param   name is the name of thread finding.
  *

@@ -1,4 +1,4 @@
-/*
+/* 
  * Copyright (c) 2006-2021, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -20,7 +20,8 @@
 #include <rthw.h>
 #include <rtthread.h>
 
-#ifdef RT_USING_SMP
+// 时钟节拍的长度可以根据 RT_TICK_PER_SECOND 的定义来调整，等于 1/RT_TICK_PER_SECOND 秒
+#ifdef RT_USING_SMP // 对称多处理器
 #define rt_tick rt_cpu_index(0)->tick
 #else
 static volatile rt_tick_t rt_tick = 0;
@@ -63,7 +64,7 @@ void rt_tick_sethook(void (*hook)(void))
  *
  * @return   Return current tick.
  */
-rt_tick_t rt_tick_get(void)
+rt_tick_t rt_tick_get(void) // 获取时钟节拍
 {
     /* return the global tick */
     return rt_tick;
@@ -75,7 +76,7 @@ RTM_EXPORT(rt_tick_get);
  *
  * @param    tick is the value that you will set.
  */
-void rt_tick_set(rt_tick_t tick)
+void rt_tick_set(rt_tick_t tick) // 设置时钟节拍
 {
     rt_base_t level;
 
@@ -88,6 +89,7 @@ void rt_tick_set(rt_tick_t tick)
  * @brief    This function will notify kernel there is one tick passed.
  *           Normally, this function is invoked by clock ISR.
  */
+// 在中断函数中调用 rt_tick_increase() 对全局变量 rt_tick 进行自加
 void rt_tick_increase(void)
 {
     struct rt_thread *thread;
@@ -97,22 +99,24 @@ void rt_tick_increase(void)
 
     level = rt_hw_interrupt_disable();
 
-    /* increase the global tick */
+   // 全局变量 rt_tick 自加
 #ifdef RT_USING_SMP
     rt_cpu_self()->tick ++;
 #else
     ++ rt_tick;
 #endif /* RT_USING_SMP */
 
-    /* check time slice */
+    /* 检查时间片 */
+
+    // 每经过一个时钟节拍时，都会检查当前线程的时间片是否用完，以及是否有定时器超时
     thread = rt_thread_self();
 
     -- thread->remaining_tick;
     if (thread->remaining_tick == 0)
     {
         /* change to initialized tick */
-        thread->remaining_tick = thread->init_tick;
-        thread->stat |= RT_THREAD_STAT_YIELD;
+        thread->remaining_tick = thread->init_tick; // 重新赋初值
+        thread->stat |= RT_THREAD_STAT_YIELD; // 线程挂起
 
         rt_hw_interrupt_enable(level);
         rt_schedule();
@@ -122,8 +126,7 @@ void rt_tick_increase(void)
         rt_hw_interrupt_enable(level);
     }
 
-    /* check timer */
-    rt_timer_check();
+    rt_timer_check(); // 检查系统硬件定时器链表，如果有定时器超时，将调用相应的超时函数
 }
 
 /**
@@ -136,18 +139,18 @@ void rt_tick_increase(void)
  *
  * @return   Return the calculated tick.
  */
-rt_tick_t rt_tick_from_millisecond(rt_int32_t ms)
+rt_tick_t rt_tick_from_millisecond(rt_int32_t ms) // 用毫秒值设置 tick
 {
     rt_tick_t tick;
 
-    if (ms < 0)
+    if (ms < 0) // < 0 当成无限大
     {
         tick = (rt_tick_t)RT_WAITING_FOREVER;
     }
     else
     {
-        tick = RT_TICK_PER_SECOND * (ms / 1000);
-        tick += (RT_TICK_PER_SECOND * (ms % 1000) + 999) / 1000;
+        tick = RT_TICK_PER_SECOND * (ms / 1000); // 秒对应 tick
+        tick += (RT_TICK_PER_SECOND * (ms % 1000) + 999) / 1000; // 余数(<1s)对应的 tick
     }
 
     /* return the calculated tick */
@@ -164,9 +167,9 @@ RTM_EXPORT(rt_tick_from_millisecond);
  *
  * @return   Return passed millisecond from boot.
  */
-RT_WEAK rt_tick_t rt_tick_get_millisecond(void)
+RT_WEAK rt_tick_t rt_tick_get_millisecond(void) // 获取当前 tick 对应毫秒值
 {
-#if 1000 % RT_TICK_PER_SECOND == 0u
+#if 1000 % RT_TICK_PER_SECOND == 0u // RT_TICK_PER_SECOND 必须小于 1000 且是 1000 的因数
     return rt_tick_get() * (1000u / RT_TICK_PER_SECOND);
 #else
     #warning "rt-thread cannot provide a correct 1ms-based tick any longer,\

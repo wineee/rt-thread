@@ -26,7 +26,7 @@
 /*
  * define object_info for the number of _object_container items.
  */
-enum rt_object_info_type
+enum rt_object_info_type /// 定义 object 类型的枚举
 {
     RT_Object_Info_Thread = 0,                         /**< The object is a thread. */
 #ifdef RT_USING_SEMAPHORE
@@ -66,10 +66,19 @@ enum rt_object_info_type
 #define _OBJ_CONTAINER_LIST_INIT(c)     \
     {&(_object_container[c].object_list), &(_object_container[c].object_list)}
 
+/// 
 static struct rt_object_information _object_container[RT_Object_Info_Unknown] =
 {
     /* initialize object container - thread */
     {RT_Object_Class_Thread, _OBJ_CONTAINER_LIST_INIT(RT_Object_Info_Thread), sizeof(struct rt_thread)},
+    /* 
+     {  RT_Object_Class_Thread,
+        { &(_object_container[RT_Object_Info_Thread].object_list), 
+          &(_object_container[RT_Object_Info_Thread].object_list)
+        }，
+        sizeof(struct rt_thread)
+    }
+    */
 #ifdef RT_USING_SEMAPHORE
     /* initialize object container - semaphore */
     {RT_Object_Class_Semaphore, _OBJ_CONTAINER_LIST_INIT(RT_Object_Info_Semaphore), sizeof(struct rt_semaphore)},
@@ -130,6 +139,7 @@ static struct rt_object_information _object_container[RT_Object_Info_Unknown] =
     #define __on_rt_object_put_hook(parent)         __ON_HOOK_ARGS(rt_object_put_hook, (parent))
 #endif
 
+// 这里定义了一些钩子函数
 #if defined(RT_USING_HOOK) && defined(RT_HOOK_USING_FUNC_PTR)
 static void (*rt_object_attach_hook)(struct rt_object *object);
 static void (*rt_object_detach_hook)(struct rt_object *object);
@@ -151,7 +161,7 @@ void (*rt_object_put_hook)(struct rt_object *object);
  */
 void rt_object_attach_sethook(void (*hook)(struct rt_object *object))
 {
-    rt_object_attach_hook = hook;
+    rt_object_attach_hook = hook; // 设置钩子函数
 }
 
 /**
@@ -237,6 +247,7 @@ rt_object_get_information(enum rt_object_class_type type)
 
     for (index = 0; index < RT_Object_Info_Unknown; index ++)
         if (_object_container[index].type == type) return &_object_container[index];
+    // 返回 type 对应的 rt_object_information
 
     return RT_NULL;
 }
@@ -262,6 +273,7 @@ int rt_object_get_length(enum rt_object_class_type type)
 
     level = rt_hw_interrupt_disable();
     /* get the count of objects */
+    /// 遍历链表获取长度
     rt_list_for_each(node, &(information->object_list))
     {
         count ++;
@@ -305,7 +317,7 @@ int rt_object_get_pointers(enum rt_object_class_type type, rt_object_t *pointers
     {
         object = rt_list_entry(node, struct rt_object, list);
 
-        pointers[index] = object;
+        pointers[index] = object; // 将链表转换为数组
         index ++;
 
         if (index >= maxlen) break;
@@ -331,7 +343,7 @@ void rt_object_init(struct rt_object         *object,
                     const char               *name)
 {
     register rt_base_t temp;
-    struct rt_list_node *node = RT_NULL;
+    struct rt_list_node *node = RT_NULL;  // 建立空链表
     struct rt_object_information *information;
 #ifdef RT_USING_MODULE
     struct rt_dlmodule *module = dlmodule_self();
@@ -343,7 +355,7 @@ void rt_object_init(struct rt_object         *object,
 
     /* check object type to avoid re-initialization */
 
-    /* enter critical */
+    /* enter critical 临界 */
     rt_enter_critical();
     /* try to find object */
     for (node  = information->object_list.next;
@@ -386,7 +398,7 @@ void rt_object_init(struct rt_object         *object,
     }
 
     /* unlock interrupt */
-    rt_hw_interrupt_enable(temp);
+    rt_hw_interrupt_enable(temp); // 开中断
 }
 
 /**
@@ -402,19 +414,19 @@ void rt_object_detach(rt_object_t object)
     /* object check */
     RT_ASSERT(object != RT_NULL);
 
-    RT_OBJECT_HOOK_CALL(rt_object_detach_hook, (object));
+    RT_OBJECT_HOOK_CALL(rt_object_detach_hook, (object)); // 调用 rt_object_detach_hook 函数
 
     /* reset object type */
     object->type = 0;
 
     /* lock interrupt */
-    temp = rt_hw_interrupt_disable();
+    temp = rt_hw_interrupt_disable(); // 关中断
 
     /* remove from old list */
-    rt_list_remove(&(object->list));
+    rt_list_remove(&(object->list)); // 清空旧链表
 
     /* unlock interrupt */
-    rt_hw_interrupt_enable(temp);
+    rt_hw_interrupt_enable(temp); // 开中断
 }
 
 #ifdef RT_USING_HEAP
@@ -555,6 +567,7 @@ rt_uint8_t rt_object_get_type(rt_object_t object)
     RT_ASSERT(object != RT_NULL);
 
     return object->type & ~RT_Object_Class_Static;
+    // 把 RT_Object_Class_Static 位统一设置为0
 }
 
 /**
@@ -591,7 +604,7 @@ rt_object_t rt_object_find(const char *name, rt_uint8_t type)
     rt_list_for_each(node, &(information->object_list))
     {
         object = rt_list_entry(node, struct rt_object, list);
-        if (rt_strncmp(object->name, name, RT_NAME_MAX) == 0)
+        if (rt_strncmp(object->name, name, RT_NAME_MAX) == 0) // 找到了
         {
             /* leave critical */
             rt_exit_critical();
