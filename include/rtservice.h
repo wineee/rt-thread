@@ -44,6 +44,7 @@ extern "C" {
  *
  * @param l list to be initialized
  */
+// 双向链表
 rt_inline void rt_list_init(rt_list_t *l)
 {
     l->next = l->prev = l;
@@ -55,6 +56,7 @@ rt_inline void rt_list_init(rt_list_t *l)
  * @param l list to insert it
  * @param n new node to be inserted
  */
+// l 后面添加 n
 rt_inline void rt_list_insert_after(rt_list_t *l, rt_list_t *n)
 {
     l->next->prev = n;
@@ -70,6 +72,7 @@ rt_inline void rt_list_insert_after(rt_list_t *l, rt_list_t *n)
  * @param n new node to be inserted
  * @param l list to insert it
  */
+// l 前添加 n
 rt_inline void rt_list_insert_before(rt_list_t *l, rt_list_t *n)
 {
     l->prev->next = n;
@@ -83,6 +86,7 @@ rt_inline void rt_list_insert_before(rt_list_t *l, rt_list_t *n)
  * @brief remove node from list.
  * @param n the node to remove from the list.
  */
+// 删除 n
 rt_inline void rt_list_remove(rt_list_t *n)
 {
     n->next->prev = n->prev;
@@ -95,6 +99,7 @@ rt_inline void rt_list_remove(rt_list_t *n)
  * @brief tests whether a list is empty
  * @param l the list to test.
  */
+// 查询链表是否为空
 rt_inline int rt_list_isempty(const rt_list_t *l)
 {
     return l->next == l;
@@ -104,6 +109,7 @@ rt_inline int rt_list_isempty(const rt_list_t *l)
  * @brief get the list length
  * @param l the list to get.
  */
+// 链表长度
 rt_inline unsigned int rt_list_len(const rt_list_t *l)
 {
     unsigned int len = 0;
@@ -186,11 +192,13 @@ rt_inline unsigned int rt_list_len(const rt_list_t *l)
  *
  * @param l the single list to be initialized
  */
+// 初始化单向链表，l 为表头
 rt_inline void rt_slist_init(rt_slist_t *l)
 {
     l->next = RT_NULL;
 }
 
+// 向单链表 l 的末尾添加 n
 rt_inline void rt_slist_append(rt_slist_t *l, rt_slist_t *n)
 {
     struct rt_slist_node *node;
@@ -203,12 +211,14 @@ rt_inline void rt_slist_append(rt_slist_t *l, rt_slist_t *n)
     n->next = RT_NULL;
 }
 
+// 向单链表 l 的表头添加 n
 rt_inline void rt_slist_insert(rt_slist_t *l, rt_slist_t *n)
 {
     n->next = l->next;
     l->next = n;
 }
 
+// 求链表长度
 rt_inline unsigned int rt_slist_len(const rt_slist_t *l)
 {
     unsigned int len = 0;
@@ -222,6 +232,7 @@ rt_inline unsigned int rt_slist_len(const rt_slist_t *l)
     return len;
 }
 
+// 从链表中删除 n, 不主动释放空间
 rt_inline rt_slist_t *rt_slist_remove(rt_slist_t *l, rt_slist_t *n)
 {
     /* remove slist head */
@@ -234,11 +245,13 @@ rt_inline rt_slist_t *rt_slist_remove(rt_slist_t *l, rt_slist_t *n)
     return l;
 }
 
+// 第一个节点
 rt_inline rt_slist_t *rt_slist_first(rt_slist_t *l)
 {
     return l->next;
 }
 
+// 最后一个节点
 rt_inline rt_slist_t *rt_slist_tail(rt_slist_t *l)
 {
     while (l->next) l = l->next;
@@ -246,11 +259,13 @@ rt_inline rt_slist_t *rt_slist_tail(rt_slist_t *l)
     return l;
 }
 
+// 下一个节点
 rt_inline rt_slist_t *rt_slist_next(rt_slist_t *n)
 {
     return n->next;
 }
 
+// 是否空链表
 rt_inline int rt_slist_isempty(rt_slist_t *l)
 {
     return l->next == RT_NULL;
