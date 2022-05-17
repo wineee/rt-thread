@@ -1,13 +1,22 @@
 import os
 
 env = Environment()
+env.AppendENVPath('PATH', os.environ['PATH'])
 env['CPPPATH'] = ['libs/parser', 'libs']
+
+#env.MergeFlags(os.environ['NIX_CFLAGS_COMPILE'])
+env.MergeFlags("-isystem /nix/store/9jrm8ad0d3bdp8vjr5n6r0l3k837a72s-ncurses-6.2-dev/include -L/nix/store/wgp4l0jl7hm510x5615qsv4xikybzqb3-ncurses-6.2/lib")
+
+print(env['CPPPATH'])
+print(os.environ['NIX_CFLAGS_COMPILE'])
+
 env['CPPDEFINES'] = ['CURSES_LOC=\\"ncurses.h\\"', 'HAVE_CONFIG_H', 
     'ROOTMENU=\\"Configuration\\"', 
     'CONFIG_=\\"CONFIG_\\"', 
     'KBUILD_NO_NLS',
     'GPERF_LEN_TYPE=unsigned int']
 env['LIBS'] = ['ncurses']
+
 
 src = Split('''
 libs/lxdialog/checklist.c
