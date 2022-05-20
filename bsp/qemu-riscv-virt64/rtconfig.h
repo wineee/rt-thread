@@ -191,6 +191,7 @@
 
 /* RISC-V QEMU virt64 configs */
 
+#define RISCV_S_MODE
 #define __STACKSIZE__ 16384
 
 #endif
