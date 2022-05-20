@@ -111,6 +111,28 @@ void rt_timer_exit_sethook(void (*hook)(struct rt_timer *timer))
 #endif /* RT_USING_HOOK */
 
 
+/*
+struct rt_object
+{
+    char       name[RT_NAME_MAX];
+    rt_uint8_t type;
+    rt_uint8_t flag;
+    rt_list_t  list;
+}
+struct rt_timer
+{
+    struct rt_object parent;
+    rt_list_t        row[RT_TIMER_SKIP_LIST_LEVEL];
+    void (*timeout_func)(void *parameter);
+    void            *parameter;
+    rt_tick_t        init_tick;
+    rt_tick_t        timeout_tick;
+};
+typedef struct rt_timer *rt_timer_t;
+static rt_list_t _timer_list[RT_TIMER_SKIP_LIST_LEVEL]; 
+
+*/
+
 /**
  * @brief [internal] The init funtion of timer
  *
@@ -150,7 +172,7 @@ static void _timer_init(rt_timer_t timer,			// 定时器句柄，指向要初始
     timer->init_tick    = time;
 
     /* initialize timer list */
-    for (i = 0; i < RT_TIMER_SKIP_LIST_LEVEL; i++)
+    for (i = 0; i < RT_TIMER_SKIP_LIST_LEVEL; i++) //TODO
     {
         rt_list_init(&(timer->row[i]));
     }
@@ -166,6 +188,7 @@ static void _timer_init(rt_timer_t timer,			// 定时器句柄，指向要初始
  * @return  Return the operation status. If the return value is RT_EOK, the function is successfully executed.
  *          If the return value is any other values, it means this operation failed.
  */
+ // 将 timer_list 的第一个超时时间付给 timeout_tick
 static rt_err_t _timer_list_next_timeout(rt_list_t timer_list[], rt_tick_t *timeout_tick)
 {
     struct rt_timer *timer;
@@ -416,7 +439,7 @@ rt_err_t rt_timer_start(rt_timer_t timer) // 定时器启动函数
     rt_list_t *timer_list;
     register rt_base_t level;
     register rt_bool_t need_schedule;
-    rt_list_t *row_head[RT_TIMER_SKIP_LIST_LEVEL];
+    rt_list_t *row_head[RT_TIMER_SKIP_LIST_LEVEL]; // 指向指针的指针
     unsigned int tst_nr;
     static unsigned int random_nr;
 
@@ -435,7 +458,7 @@ rt_err_t rt_timer_start(rt_timer_t timer) // 定时器启动函数
 
     RT_OBJECT_HOOK_CALL(rt_object_take_hook, (&(timer->parent))); // 调用钩子函数
 
-    timer->timeout_tick = rt_tick_get() + timer->init_tick; // 下一次调用时的 tick
+    timer->timeout_tick = rt_tick_get() + timer->init_tick; // 下一次调用时的 tick, 32位无符号数, 相当于%RT_TICK_MAX
 
 #ifdef RT_USING_TIMER_SOFT
     if (timer->parent.flag & RT_TIMER_FLAG_SOFT_TIMER)
@@ -451,15 +474,15 @@ rt_err_t rt_timer_start(rt_timer_t timer) // 定时器启动函数
         timer_list = _timer_list;
     }
 
-    // 按照超时顺序插入到 rt_timer_list 队列链表
-    row_head[0]  = &timer_list[0]; // rt_list_t row_head[]
+    // 按照超时顺序插入到 rt_timer_list 队列链表，先找到位置
+    row_head[0]  = &timer_list[0]; // rt_list_t row_head[RT_TIMER_SKIP_LIST_LEVEL]
     for (row_lvl = 0; row_lvl < RT_TIMER_SKIP_LIST_LEVEL; row_lvl++)
     {
         for (; row_head[row_lvl] != timer_list[row_lvl].prev;
              row_head[row_lvl]  = row_head[row_lvl]->next)
         {
             struct rt_timer *t;
-            rt_list_t *p = row_head[row_lvl]->next;
+            rt_list_t *p = row_head[row_lvl]->next; // row_head[i] 为 i 层的前屈
 
             /* fix up the entry pointer */
             t = rt_list_entry(p, struct rt_timer, row[row_lvl]);
@@ -471,15 +494,26 @@ rt_err_t rt_timer_start(rt_timer_t timer) // 定时器启动函数
              */
             if ((t->timeout_tick - timer->timeout_tick) == 0)
             {
-                continue; // 可能多个函数同时超时
+                continue; // 可能多个函数同时超时，新来的就放后面
             }
             else if ((t->timeout_tick - timer->timeout_tick) < RT_TICK_MAX / 2)
             {
+                // 按照 time-current_tick 排序
+                /*
+                NOTE: The max timeout tick should be no more than (RT_TICK_MAX/2 - 1)
+                t->timeout_tick - timer->timeout_tick > 0                            ;; %RT_TICK_MAX
+                t->timeout_tick - timer->timeout_tick < RT_TICK_MAX / 2
+                */
                 break;
+                /*
+                为什么定时器里判断超时的条件是((current_tick - t→timeout_tick) < RT_TICK_MAX/2)
+                系统时钟溢出后会自动回绕。取定时器比较最大值是定时器最大值的一半，即RT_TICK_MAX/2
+                在比较两个定时器值时，值是32位无符号数，相减运算将会自动回绕
+                */
             }
         }
         if (row_lvl != RT_TIMER_SKIP_LIST_LEVEL - 1) // 
-            row_head[row_lvl + 1] = row_head[row_lvl] + 1;
+            row_head[row_lvl + 1] = row_head[row_lvl] + 1;// &timer_list[0]+1 --> &timer_list[1]
     }
 
     /* Interestingly, this super simple timer insert counter works very very
@@ -687,7 +721,7 @@ void rt_timer_check(void)
                 continue;
             }
             rt_list_remove(&(t->row[RT_TIMER_SKIP_LIST_LEVEL - 1]));
-            if ((t->parent.flag & RT_TIMER_FLAG_PERIODIC) &&
+            if ((t->parent.flag & RT_TIMER_FLAG_PERIODIC) &&  // 周期性定时器
                 (t->parent.flag & RT_TIMER_FLAG_ACTIVATED))
             {
                 /* start it */
