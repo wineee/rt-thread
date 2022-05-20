@@ -66,7 +66,17 @@ enum rt_object_info_type /// 定义 object 类型的枚举
 #define _OBJ_CONTAINER_LIST_INIT(c)     \
     {&(_object_container[c].object_list), &(_object_container[c].object_list)}
 
-/// 
+
+/*
+struct rt_object_information
+{
+    enum rt_object_class_type type; 
+    rt_list_t                 object_list;
+    rt_size_t                 object_size;
+};
+*/
+
+/// 定义了一个 rt_object_information 数组
 static struct rt_object_information _object_container[RT_Object_Info_Unknown] =
 {
     /* initialize object container - thread */
@@ -240,6 +250,7 @@ void rt_object_put_sethook(void (*hook)(struct rt_object *object))
  *
  * @return the object type information or RT_NULL
  */
+ // 获得对应类型的全局链表
 struct rt_object_information *
 rt_object_get_information(enum rt_object_class_type type)
 {
@@ -261,6 +272,7 @@ RTM_EXPORT(rt_object_get_information);
  *
  * @return the length of object list
  */
+ // 获得对应类型的全局链表长度
 int rt_object_get_length(enum rt_object_class_type type)
 {
     int count = 0;
@@ -297,6 +309,32 @@ RTM_EXPORT(rt_object_get_length);
  *
  * @return the copied number of object pointers.
  */
+ // 将最长 maxlen 的全局type链表放进 pointer 为起点的数组中
+
+ /*
+struct rt_object_information
+{
+    enum rt_object_class_type type; 
+    rt_list_t                 object_list;
+    rt_size_t                 object_size;
+};
+
+ struct rt_list_node
+{
+    struct rt_list_node *next;
+    struct rt_list_node *prev;
+}
+typedef struct rt_list_node rt_list_t;
+
+
+struct rt_object
+{
+    char       name[RT_NAME_MAX];
+    rt_uint8_t type;
+    rt_uint8_t flag;
+    rt_list_t  list;
+}
+ */
 int rt_object_get_pointers(enum rt_object_class_type type, rt_object_t *pointers, int maxlen)
 {
     int index = 0;
@@ -315,7 +353,7 @@ int rt_object_get_pointers(enum rt_object_class_type type, rt_object_t *pointers
     /* retrieve pointer of object */
     rt_list_for_each(node, &(information->object_list))
     {
-        object = rt_list_entry(node, struct rt_object, list);
+        object = rt_list_entry(node, struct rt_object, list);//rt_list_node -> rt_object
 
         pointers[index] = object; // 将链表转换为数组
         index ++;
@@ -358,7 +396,7 @@ void rt_object_init(struct rt_object         *object,
     /* enter critical 临界 */
     rt_enter_critical();
     /* try to find object */
-    for (node  = information->object_list.next;
+    for (node = information->object_list.next;
             node != &(information->object_list);
             node  = node->next)
     {
@@ -367,7 +405,7 @@ void rt_object_init(struct rt_object         *object,
         obj = rt_list_entry(node, struct rt_object, list);
         if (obj) /* skip warning when disable debug */
         {
-            RT_ASSERT(obj != object);
+            RT_ASSERT(obj != object); // 不应该有重复的 object
         }
     }
     /* leave critical */
@@ -377,7 +415,7 @@ void rt_object_init(struct rt_object         *object,
     /* set object type to static */
     object->type = type | RT_Object_Class_Static;
     /* copy name */
-    rt_strncpy(object->name, name, RT_NAME_MAX);
+    rt_strncpy(object->name, name, RT_NAME_MAX); // name 赋值
 
     RT_OBJECT_HOOK_CALL(rt_object_attach_hook, (object));
 
@@ -394,7 +432,7 @@ void rt_object_init(struct rt_object         *object,
 #endif /* RT_USING_MODULE */
     {
         /* insert object into information object list */
-        rt_list_insert_after(&(information->object_list), &(object->list));
+        rt_list_insert_after(&(information->object_list), &(object->list)); // 插入
     }
 
     /* unlock interrupt */
@@ -423,7 +461,7 @@ void rt_object_detach(rt_object_t object)
     temp = rt_hw_interrupt_disable(); // 关中断
 
     /* remove from old list */
-    rt_list_remove(&(object->list)); // 清空旧链表
+    rt_list_remove(&(object->list)); // 从全局 object manger 中删除
 
     /* unlock interrupt */
     rt_hw_interrupt_enable(temp); // 开中断
