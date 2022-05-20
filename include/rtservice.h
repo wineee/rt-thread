@@ -30,6 +30,7 @@ extern "C" {
  * rt_container_of - return the member address of ptr, if the type of ptr is the
  * struct type.
  */
+ // 根据成员（member）位置（ptr）推算出， type 首位置
 #define rt_container_of(ptr, type, member) \
     ((type *)((char *)(ptr) - (unsigned long)(&((type *)0)->member)))
 
