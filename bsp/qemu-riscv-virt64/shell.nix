@@ -17,7 +17,7 @@ with pkgs; mkShell {
     RTT_ROOT=/data/rv/rt-thread
     BSP_ROOT=/data/rv/rt-thread/bsp
     RTT_CC=gcc
-    EXEC_PATH=/opt/riscv/bin
+    RTT_EXEC_PATH=/opt/riscv/bin
     PYTHONPATH=${python-with-my-packages}/${python-with-my-packages.sitePackages}
     # maybe set more env-vars
   '';
