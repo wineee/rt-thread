@@ -46,7 +46,7 @@ volatile rt_ubase_t rt_thread_switch_interrupt_flag = 0;
 rt_uint8_t *rt_hw_stack_init(void       *tentry,
                              void       *parameter,
                              rt_uint8_t *stack_addr,
-                             void       *texit)
+                             void       *texit) /// 初始化线程栈
 {
     struct rt_hw_stack_frame *frame;
     rt_uint8_t         *stk;
