@@ -173,11 +173,11 @@ static rt_err_t _thread_init(struct rt_thread *thread,
     /* init thread list */
     rt_list_init(&(thread->tlist));
 
-    thread->entry = (void *)entry;
-    thread->parameter = parameter;
+    thread->entry = (void *)entry; // 函数
+    thread->parameter = parameter; // 参数
 
     /* stack init */
-    thread->stack_addr = stack_start;
+    thread->stack_addr = stack_start; // 线程栈空间
     thread->stack_size = stack_size;
 
     /* init thread stack */
@@ -185,7 +185,8 @@ static rt_err_t _thread_init(struct rt_thread *thread,
 #ifdef ARCH_CPU_STACK_GROWS_UPWARD
     thread->sp = (void *)rt_hw_stack_init(thread->entry, thread->parameter,
                                           (void *)((char *)thread->stack_addr),
-                                          (void *)_thread_exit);
+                                          (void *)_thread_exit); 
+                                          // sp 栈指针 rt_hw_stack_init 初始化栈，在 libcpu 中实现
 #else
     thread->sp = (void *)rt_hw_stack_init(thread->entry, thread->parameter,
                                           (rt_uint8_t *)((char *)thread->stack_addr + thread->stack_size - sizeof(rt_ubase_t)),
@@ -305,7 +306,7 @@ rt_err_t rt_thread_init(struct rt_thread *thread,
                         void             *stack_start,
                         rt_uint32_t       stack_size,
                         rt_uint8_t        priority,
-                        rt_uint32_t       tick)
+                        rt_uint32_t       tick) // 静态线程初始化
 {
     /* parameter check */
     RT_ASSERT(thread != RT_NULL);
@@ -693,7 +694,7 @@ RTM_EXPORT(rt_thread_delay_until);
  * @return  Return the operation status. If the return value is RT_EOK, the function is successfully executed.
  *          If the return value is any other values, it means this operation failed.
  */
-rt_err_t rt_thread_mdelay(rt_int32_t ms)
+rt_err_t rt_thread_mdelay(rt_int32_t ms) // 延时运行
 {
     rt_tick_t tick;
 
@@ -840,7 +841,7 @@ RTM_EXPORT(rt_thread_control);
  * @return  Return the operation status. If the return value is RT_EOK, the function is successfully executed.
  *          If the return value is any other values, it means this operation failed.
  */
-rt_err_t rt_thread_suspend(rt_thread_t thread)
+rt_err_t rt_thread_suspend(rt_thread_t thread) // 线程挂起
 {
     register rt_base_t stat;
     register rt_base_t temp;
@@ -867,7 +868,7 @@ rt_err_t rt_thread_suspend(rt_thread_t thread)
     thread->stat = RT_THREAD_SUSPEND | (thread->stat & ~RT_THREAD_STAT_MASK);
 
     /* stop thread timer anyway */
-    rt_timer_stop(&(thread->thread_timer));
+    rt_timer_stop(&(thread->thread_timer)); // 停止定时器
 
     /* enable interrupt */
     rt_hw_interrupt_enable(temp);
@@ -887,7 +888,7 @@ RTM_EXPORT(rt_thread_suspend);
  * @return  Return the operation status. If the return value is RT_EOK, the function is successfully executed.
  *          If the return value is any other values, it means this operation failed.
  */
-rt_err_t rt_thread_resume(rt_thread_t thread)
+rt_err_t rt_thread_resume(rt_thread_t thread) // 线程重启
 {
     register rt_base_t temp;
 
@@ -909,12 +910,12 @@ rt_err_t rt_thread_resume(rt_thread_t thread)
     temp = rt_hw_interrupt_disable();
 
     /* remove from suspend list */
-    rt_list_remove(&(thread->tlist));
+    rt_list_remove(&(thread->tlist)); // 先删除
 
     rt_timer_stop(&thread->thread_timer);
 
     /* insert to schedule ready list */
-    rt_schedule_insert_thread(thread);
+    rt_schedule_insert_thread(thread); // 再重新加入
 
     /* enable interrupt */
     rt_hw_interrupt_enable(temp);

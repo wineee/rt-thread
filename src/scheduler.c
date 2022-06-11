@@ -384,7 +384,7 @@ void rt_schedule(void)
                 RT_OBJECT_HOOK_CALL(rt_scheduler_switch_hook, (current_thread));
 
                 rt_hw_context_switch((rt_ubase_t)&current_thread->sp,
-                        (rt_ubase_t)&to_thread->sp, to_thread);
+                        (rt_ubase_t)&to_thread->sp, to_thread); // libcpu 实现
             }
         }
     }
